@@ -7,33 +7,26 @@ Created on Fri Apr 17 19:23:46 2020
 """
 
 import torch
-from . import ssdconfig
-import torchvision
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
+from torchvision.models import vgg16_bn, vgg16
 
+from . import ssdconfig
 
 
 class VggBackbone(nn.Module):
-    '''
-    VGG16 with BN : Feature extractor for SSD
-    '''
-    
-    def __init__(self, config : ssdconfig.SSDConfig):
+    def __init__(self, config: ssdconfig.SSDConfig):
         super().__init__()
         self.config = config
-        
         self.vgg_base = nn.ModuleList(self._vgg_layers())
         self.aux_base = nn.ModuleList(self._aux_layers())
         self._init_aux_params()
         self._load_vgg_params()
 
     def _vgg_layers(self):
-
         cfg = self.config.VGG_BASE_CONFIG[str(self.config.INPUT_IMAGE_SIZE)]
         batch_norm = self.config.VGG_BASE_BN
         in_channels = self.config.VGG_BASE_IN_CHANNELS
-        
         layers = []
         for v in cfg:
             if v == 'M':
@@ -54,13 +47,10 @@ class VggBackbone(nn.Module):
                    nn.ReLU(inplace=True), conv7, nn.ReLU(inplace=True)]
         return layers
 
-
     def _aux_layers(self):
-
         # Extra layers added to VGG for feature scaling
         cfg = self.config.AUX_BASE_CONFIG[str(self.config.INPUT_IMAGE_SIZE)]
         in_channels = self.config.AUX_BASE_IN_CHANNELS
-        
         layers = []
         flag = False
         for k, v in enumerate(cfg):
@@ -75,8 +65,7 @@ class VggBackbone(nn.Module):
             layers.append(nn.Conv2d(in_channels, 128, kernel_size=1, stride=1))
             layers.append(nn.Conv2d(128, 256, kernel_size=4, stride=1, padding=1))
         return layers
-    
-    
+
     def forward(self, x):
         features = []
         conv_43_index = self.config.VGGBN_BASE_CONV43_INDEX
@@ -84,70 +73,57 @@ class VggBackbone(nn.Module):
         # apply vgg up to conv4_3
         for ix in range(conv_43_index):
             x = self.vgg_base[ix](x)
-        # s = self.l2_norm(x)  # Conv4_3 L2 normalization
+        # s = self.l2_norm(x)  # Conv4_3 L2 normalization # TODO : implement
         features.append(x)
-
+        
         # apply vgg up to fc7
         for ix in range(conv_43_index, len(self.vgg_base)):
             x = self.vgg_base[ix](x)
         features.append(x)
-
-        # for k, v in enumerate(self.aux_base):
-        #     x = F.relu(v(x), inplace=True)
-        #     if k % 2 == 1:
-        #         features.append(x)
+        
         # apply auxiliary conv layers
         for ix in range(len(self.aux_base)):
             x = F.relu(self.aux_base[ix](x))
-            if( ix%2 == 1):
+            if(ix % 2 == 1):
                 features.append(x)
-
         return tuple(features)
-    
-    
-    def _load_vgg_params(self):
 
-        bn_flag = self.config.VGG_BASE_BN  # if batch normalization is enabled or not
+    def _load_vgg_params(self):
+        vgg16_pt = vgg16_bn if self.config.VGG_BASE_BN else vgg16  # pretrained vgg16 model
         views = self.config.VGG_BASE_CONV67_VIEWS
         subsample_factor = self.config.VGG_BASE_CONV67_SUBSAMPLE_FACTOR
-        
         # get pre-trained parameters
-        if bn_flag:
-            pretrained_conv_params = torchvision.models.vgg16_bn(False).features.state_dict()
-            pretrained_clfr_params = torchvision.models.vgg16_bn(False).classifier.state_dict()
-        else:   
-            pretrained_conv_params = torchvision.models.vgg16(False).features.state_dict()
-            pretrained_clfr_params = torchvision.models.vgg16(False).classifier.state_dict()
-        
+        pretrained_params = vgg16_pt(False).features.state_dict()
+        pretrained_clfr_params = vgg16_pt(False).classifier.state_dict()
+
         # reshape and subsample parameters for conv6 & conv7 layers
+        # add reshaped classifier parameters to pretrained_params
         for ix, param_name in enumerate(list(self.vgg_base.state_dict().keys())[-4:]):
             params = pretrained_clfr_params[list(pretrained_clfr_params.keys())[ix]].view(views[ix])
             params = self._subsample(params, subsample_factor[ix])
-            pretrained_conv_params[param_name] = params
-        
+            pretrained_params[param_name] = params
+            
         # load pretrained parameteres into model
-        res = self.vgg_base.load_state_dict(pretrained_conv_params, strict=False)
+        res = self.vgg_base.load_state_dict(pretrained_params, strict=False)
         assert(res.__repr__() == '<All keys matched successfully>'), \
             'Error Loading pretrained parameters'
-            
 
     def _subsample(self, tensor, m):
-        """
-        downsample by keeping every 'm'th value.
-    
-        This is used when we convert FC layers to equivalent Convolutional layers, BUT of a smaller size.
-    
-        :param tensor: tensor to be decimated
-        :param m: list of decimation factors for each dimension of the tensor; None if not to be decimated along a dimension
-        :return: decimated tensor
-        """
-        assert tensor.dim() == len(m)
+        # subsample a tensor by keeping every m-th value along a dimension
+        # None for no subsampling in that dimension.
+        assert tensor.dim() == len(m), \
+            'Subsampling factor must be provided for each tensor dimension explicitly.'
         for d in range(tensor.dim()):
             if m[d] is not None:
                 tensor = tensor.index_select(dim=d,
-                                             index=torch.arange(start=0, end=tensor.size(d), step=m[d]).long())
+                                             index=torch.arange(start=0,
+                                                                end=tensor.size(d),
+                                                                step=m[d]).long())
         return tensor
 
+    def l2_norm(self):
+        # TODO : Implement
+        pass
 
     def _init_aux_params(self):
         for m in self.aux_base.modules():

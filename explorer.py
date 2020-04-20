@@ -66,3 +66,16 @@ x = torch.rand(5, 3, 300, 300)
 out = model(x)
 for o in out:
     print(o.shape)
+    
+#%%
+
+import pickle
+from model.predictionconv import PredictionConv
+
+
+
+with open('ref/out.pickle' , 'rb') as f:
+    out = pickle.load(f)
+
+for o in out:
+    print(o.shape)
