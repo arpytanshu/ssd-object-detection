@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Tue Apr 18 01:17:07 2020
+Created on Tue Apr 17 01:17:07 2020
 
 @author: ansh
 """
 
-import pandas as pd
-import matplotlib.pyplot as plt
-import torchvision.transforms.functional as FT
 import torch
+import torchvision
+import matplotlib.pyplot as plt
+from torch.utils.tensorboard import SummaryWriter
+from torchvision.transforms.functional import to_pil_image
 
 def xywh_to_xyXY(boxes_xywh : torch.tensor) -> torch.tensor:
     '''
@@ -41,17 +42,20 @@ def xyXY_to_xywh(boxes_xyXY : torch.tensor) -> torch.tensor:
     return boxes_xywh
 
 
-def showBB_xywh(image, boxes):
+def showBB_xyXY(image, boxes, scale = 300):
+    if (type(image) == torch.Tensor):
+        image = to_pil_image(image)
     plt.imshow(image)
     for bb in boxes:
-        x,y,w,h = bb
-        plt.plot([x,x+w, x+w, x, x],[y, y, y+h, y+h, y], c='r', linewidth=1)
+        x,y,X,Y = map(int, bb*scale)
+        plt.plot([x, X, X, x, x], [y, y, Y, Y, y], c='b', linewidth=1)
     plt.show()
 
-def showBB_xyXY(image, boxes):
-    plt.imshow(image)
-    for bb in boxes:
-        x,y,X,Y = bb
-        plt.plot([x, X, X, x, x], [y, y, Y, Y, y], c='r', linewidth=1)
-    plt.show()
+
+def get_params_to_learn(model):
+    params_to_learn = []
+    for param in model.named_parameters():
+        if param.requires_grad:
+            params_to_learn.append(param)
+    return params_to_learn
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Tue Apr 18 01:17:07 2020
+Created on Tue Apr 17 01:17:07 2020
 
 @author: ansh
 """
@@ -14,6 +14,8 @@ import utils
 import torch
 from random import randint
 from torch.utils.data import DataLoader
+from torchvision import transforms as T
+
 
 
 # ---- -----
@@ -34,16 +36,26 @@ dataloader = DataLoader(dataset, batch_size=5, shuffle=True, collate_fn=data.col
 
 
 #%%
-
+# test dataset
+# ---- -------
 image, boxes = dataset[randint(0, len(dataset))]
-
-
-batch = next(iter(dataloader))
-images = batch[0]
-boxes  = batch[1]
-
-
-# see a sample
-boxes = torch.stack(boxes)*300
-boxes = boxes.type(dtype=torch.int)
 utils.showBB_xyXY(image, boxes)
+
+# test dataloader
+# ---- ----------
+batch = next(iter(dataloader))
+
+images = batch[0]
+boxes   = batch[1]
+
+for image, bb in zip(images, boxes):
+    utils.showBB_xyXY(image, bb)
+
+
+#%%
+
+from model.ssdconfig import SSDConfig
+from model.vggbackbone import VggBackbone
+
+config = SSDConfig()
+model = VggBackbone(config)

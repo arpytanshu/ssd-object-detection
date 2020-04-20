@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Tue Apr 18 01:17:07 2020
+Created on Tue Apr 17 01:17:07 2020
 
 @author: ansh
 """
@@ -97,7 +97,12 @@ def imageTransforms(image):
     
     return new_image
 
-    
+
+
+# ------- -------- ---------
+# Dataset specific functions    
+# ------- -------- ---------
+
 
 def get_dataframe(annotations_path):
     D =    {'image_name' : [],
@@ -123,7 +128,7 @@ def collate_fn(batch):
         images.append(b[0])
         boxes.append(b[1])
     images = torch.stack(images, dim=0)
-    return images, boxes  # tensor (N, 3, 300, 300), 3 lists of N tensors each
+    return images, boxes 
    
     
    
