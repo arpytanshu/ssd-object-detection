@@ -10,6 +10,7 @@ import torch
 from . import ssdconfig
 import torchvision
 from torch import nn
+import torch.nn.functional as F
 
 
 
@@ -28,16 +29,7 @@ class VggBackbone(nn.Module):
         self._load_vgg_params()
 
     def _vgg_layers(self):
-        '''
-        
 
-        Args:
-            config (TYPE): DESCRIPTION.
-
-        Returns:
-            layers (TYPE): DESCRIPTION.
-
-        '''
         cfg = self.config.VGG_BASE_CONFIG[str(self.config.INPUT_IMAGE_SIZE)]
         batch_norm = self.config.VGG_BASE_BN
         in_channels = self.config.VGG_BASE_IN_CHANNELS
@@ -64,16 +56,7 @@ class VggBackbone(nn.Module):
 
 
     def _aux_layers(self):
-        '''
-        
 
-        Args:
-            config (TYPE): DESCRIPTION.
-
-        Returns:
-            layers (TYPE): DESCRIPTION.
-
-        '''
         # Extra layers added to VGG for feature scaling
         cfg = self.config.AUX_BASE_CONFIG[str(self.config.INPUT_IMAGE_SIZE)]
         in_channels = self.config.AUX_BASE_IN_CHANNELS
@@ -92,12 +75,38 @@ class VggBackbone(nn.Module):
             layers.append(nn.Conv2d(in_channels, 128, kernel_size=1, stride=1))
             layers.append(nn.Conv2d(128, 256, kernel_size=4, stride=1, padding=1))
         return layers
+    
+    
+    def forward(self, x):
+        features = []
+        conv_43_index = self.config.VGGBN_BASE_CONV43_INDEX
         
+        # apply vgg up to conv4_3
+        for ix in range(conv_43_index):
+            x = self.vgg_base[ix](x)
+        # s = self.l2_norm(x)  # Conv4_3 L2 normalization
+        features.append(x)
+
+        # apply vgg up to fc7
+        for ix in range(conv_43_index, len(self.vgg_base)):
+            x = self.vgg_base[ix](x)
+        features.append(x)
+
+        # for k, v in enumerate(self.aux_base):
+        #     x = F.relu(v(x), inplace=True)
+        #     if k % 2 == 1:
+        #         features.append(x)
+        # apply auxiliary conv layers
+        for ix in range(len(self.aux_base)):
+            x = F.relu(self.aux_base[ix](x))
+            if( ix%2 == 1):
+                features.append(x)
+
+        return tuple(features)
+    
     
     def _load_vgg_params(self):
-        '''
 
-        '''
         bn_flag = self.config.VGG_BASE_BN  # if batch normalization is enabled or not
         views = self.config.VGG_BASE_CONV67_VIEWS
         subsample_factor = self.config.VGG_BASE_CONV67_SUBSAMPLE_FACTOR

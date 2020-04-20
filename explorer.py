@@ -56,6 +56,13 @@ for image, bb in zip(images, boxes):
 
 from model.ssdconfig import SSDConfig
 from model.vggbackbone import VggBackbone
+import torch
 
 config = SSDConfig()
 model = VggBackbone(config)
+
+x = torch.rand(5, 3, 300, 300)
+
+out = model(x)
+for o in out:
+    print(o.shape)
