@@ -93,8 +93,8 @@ class VggBackbone(nn.Module):
         views = self.config.VGG_BASE_CONV67_VIEWS
         subsample_factor = self.config.VGG_BASE_CONV67_SUBSAMPLE_FACTOR
         # get pre-trained parameters
-        pretrained_params = vgg16_pt(False).features.state_dict()
-        pretrained_clfr_params = vgg16_pt(False).classifier.state_dict()
+        pretrained_params = vgg16_pt(False).features.state_dict()  # TODO : set to True
+        pretrained_clfr_params = vgg16_pt(False).classifier.state_dict()  # TODO : set to True
 
         # reshape and subsample parameters for conv6 & conv7 layers
         # add reshaped classifier parameters to pretrained_params
@@ -115,10 +115,8 @@ class VggBackbone(nn.Module):
             'Subsampling factor must be provided for each tensor dimension explicitly.'
         for d in range(tensor.dim()):
             if m[d] is not None:
-                tensor = tensor.index_select(dim=d,
-                                             index=torch.arange(start=0,
-                                                                end=tensor.size(d),
-                                                                step=m[d]).long())
+                index = torch.arange(end=tensor.size(d), step=m[d], dtype=torch.long)
+                tensor = tensor.index_select(dim=d, index = index)                       
         return tensor
 
     def l2_norm(self):

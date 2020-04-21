@@ -79,3 +79,24 @@ with open('ref/out.pickle' , 'rb') as f:
 
 for o in out:
     print(o.shape)
+
+
+config = SSDConfig()
+pc_model = PredictionConv(config)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
