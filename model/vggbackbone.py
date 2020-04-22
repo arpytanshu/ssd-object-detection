@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Apr 17 19:23:46 2020
+Created on Tue Apr 17 01:17:07 2020
 
 @author: arpytanshu@gmail.com
 """
@@ -115,7 +115,7 @@ class VggBackbone(nn.Module):
             'Subsampling factor must be provided for each tensor dimension explicitly.'
         for d in range(tensor.dim()):
             if m[d] is not None:
-                index = torch.arange(end=tensor.size(d), step=m[d], dtype=torch.long)
+                index = torch.arange(0, end=tensor.size(d), step=m[d], dtype=torch.long)
                 tensor = tensor.index_select(dim=d, index = index)                       
         return tensor
 

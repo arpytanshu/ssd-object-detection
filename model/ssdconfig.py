@@ -1,14 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sun Apr 19 15:14:10 2020
+Created on Tue Apr 17 01:17:07 2020
 
 @author: arpytanshu@gmail.com
 """
+import torch
+
 
 
 class SSDConfig():
     def __init__(self):
+        
+        # ------
+        # device
+        # ------
+        self.DEVICE = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
+        # -----
+        # Input
+        # -----
         self.INPUT_IMAGE_SIZE = 300
         self.NUM_CLASSES = 2
         # -------------- --- --- --------
@@ -40,9 +50,12 @@ class SSDConfig():
         self.AUX_BASE_CONFIG = {
             '300': [256, 'S', 512, 128, 'S', 256, 128, 256, 128, 256],
             '512': [256, 'S', 512, 128, 'S', 256, 128, 'S', 256, 128, 'S', 256]}
-        self.FEATURE_MAP_NAMES = ['conv4_3', 'conv7', 'conv8_2',
-                                  'conv9_2', 'conv10_2', 'conv11_2']
-        self.FEATURE_MAP_NUM_CHANNELS = {
+        # ------- ----
+        # Feature Maps
+        # ------- ----
+        self.FM_NAMES = ['conv4_3', 'conv7', 'conv8_2',
+                        'conv9_2', 'conv10_2', 'conv11_2']
+        self.FM_NUM_CHANNELS = {
             'conv4_3': 512,
             'conv7': 1024,
             'conv8_2': 512,
@@ -56,3 +69,17 @@ class SSDConfig():
             'conv9_2': 6,
             'conv10_2': 4,
             'conv11_2': 4}
+        self.FM_DIMS = [38, 19, 10, 5, 3, 1]
+        self.FM_SCALES = [0.1, 0.2, 0.375, 0.55, 0.725, 0.9]
+        self.FM_ASPECT_RATIO = [[1., 2., 0.5],
+                                [1., 2., 3., 0.5, .333],
+                                [1., 2., 3., 0.5, .333],
+                                [1., 2., 3., 0.5, .333],
+                                [1., 2., 0.5],
+                                [1., 2., 0.5]]
+        # ith additional scale is geometric mean scales of ith and (i+1)th FM.
+        self.FM_ADDITIONAL_SCALES = [0.1414, 0.2738, 0.4541, 0.6314, 0.8077, 1.0]
+        
+        
+        
+        
