@@ -7,11 +7,86 @@ Created on Tue Apr 17 01:17:07 2020
 """
 
 import torch
-import torchvision
 import numpy as np
 import matplotlib.pyplot as plt
-from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms.functional import to_pil_image
+
+def adjust_learning_rate(optimizer, scale):
+    """
+    Scale learning rate by a specified factor.
+
+    :param optimizer: optimizer whose learning rate must be shrunk.
+    :param scale: factor to multiply learning rate with.
+    """
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = param_group['lr'] * scale
+    print("DECAYING learning rate.\n The new LR is %f\n" % (optimizer.param_groups[1]['lr'],))
+
+
+def accuracy(scores, targets, k):
+    """
+    Computes top-k accuracy, from predicted and true labels.
+
+    :param scores: scores from the model
+    :param targets: true labels
+    :param k: k in top-k accuracy
+    :return: top-k accuracy
+    """
+    batch_size = targets.size(0)
+    _, ind = scores.topk(k, 1, True, True)
+    correct = ind.eq(targets.view(-1, 1).expand_as(ind))
+    correct_total = correct.view(-1).float().sum()  # 0D tensor
+    return correct_total.item() * (100.0 / batch_size)
+
+
+def save_checkpoint(epoch, model, optimizer):
+    """
+    Save model checkpoint.
+
+    :param epoch: epoch number
+    :param model: model
+    :param optimizer: optimizer
+    """
+    state = {'epoch': epoch,
+             'model': model,
+             'optimizer': optimizer}
+    filename = 'checkpoint_ssd-od.pth.tar'.format(epoch)
+    torch.save(state, filename)
+
+
+class AverageMeter(object):
+    """
+    Keeps track of most recent, average, sum, and count of a metric.
+    """
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+
+def clip_gradient(optimizer, grad_clip):
+    """
+    Clips gradients computed during backpropagation to avoid explosion of gradients.
+
+    :param optimizer: optimizer with the gradients to be clipped
+    :param grad_clip: clip value
+    """
+    for group in optimizer.param_groups:
+        for param in group['params']:
+            if param.grad is not None:
+                param.grad.data.clamp_(-grad_clip, grad_clip)
+
 
 def xywh_to_xyXY(boxes_xywh : torch.tensor) -> torch.tensor:
     '''
@@ -68,62 +143,3 @@ def get_mean_AR(df):
             AR.append(box[2] / box[3])
     AR = np.array(AR)
     return AR.mean(), AR.std()      
-
-
-def create_prior_boxes(self):
-    """
-    Create the 8732 prior (default) boxes for the SSD300, as defined in the paper.
-
-    :return: prior boxes in center-size coordinates, a tensor of dimensions (8732, 4)
-    """
-    import torch
-    from math import sqrt
-    
-    fmap_dims = {'conv4_3': 38,
-                 'conv7': 19,
-                 'conv8_2': 10,
-                 'conv9_2': 5,
-                 'conv10_2': 3,
-                 'conv11_2': 1}
-
-    obj_scales = {'conv4_3': 0.1,
-                  'conv7': 0.2,
-                  'conv8_2': 0.375,
-                  'conv9_2': 0.55,
-                  'conv10_2': 0.725,
-                  'conv11_2': 0.9}
-
-    aspect_ratios = {'conv4_3': [1., 2., 0.5],
-                     'conv7': [1., 2., 3., 0.5, .333],
-                     'conv8_2': [1., 2., 3., 0.5, .333],
-                     'conv9_2': [1., 2., 3., 0.5, .333],
-                     'conv10_2': [1., 2., 0.5],
-                     'conv11_2': [1., 2., 0.5]}
-
-    fmaps = list(fmap_dims.keys())
-
-    prior_boxes = []
-
-    for k, fmap in enumerate(fmaps):
-        for i in range(fmap_dims[fmap]):
-            for j in range(fmap_dims[fmap]):
-                cx = (j + 0.5) / fmap_dims[fmap]
-                cy = (i + 0.5) / fmap_dims[fmap]
-
-                for ratio in aspect_ratios[fmap]:
-                    prior_boxes.append([cx, cy, obj_scales[fmap] * sqrt(ratio), obj_scales[fmap] / sqrt(ratio)])
-
-                    # For an aspect ratio of 1, use an additional prior whose scale is the geometric mean of the
-                    # scale of the current feature map and the scale of the next feature map
-                    if ratio == 1.:
-                        try:
-                            additional_scale = sqrt(obj_scales[fmap] * obj_scales[fmaps[k + 1]])
-                        # For the last feature map, there is no "next" feature map
-                        except IndexError:
-                            additional_scale = 1.
-                        prior_boxes.append([cx, cy, additional_scale, additional_scale])
-
-    prior_boxes = torch.FloatTensor(prior_boxes).to(device)  # (8732, 4)
-    prior_boxes.clamp_(0, 1)  # (8732, 4)
-
-    return prior_boxes

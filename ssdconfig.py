@@ -8,9 +8,13 @@ Created on Tue Apr 17 01:17:07 2020
 import torch
 
 
-
 class SSDConfig():
     def __init__(self):
+        
+        # Paths
+        self.PATH_TO_ANNOTATIONS = './data/annotation.txt'
+        self.PATH_TO_IMAGES = './data/ShelfImages/'
+        self.PATH_TO_CHECKPOINT = ''
         
         # ------
         # device
@@ -80,6 +84,23 @@ class SSDConfig():
         # ith additional scale is geometric mean scales of ith and (i+1)th FM.
         self.FM_ADDITIONAL_SCALES = [0.1414, 0.2738, 0.4541, 0.6314, 0.8077, 1.0]
         
+        # ---- -------------
+        # Loss configuration
+        # ---- -------------
+        self.MBL_threshold = 0.5
+        self.MBL_neg_pos_ratio = 3
+        self.MBL_alpha = 1.
         
-        
+        # -------- ------------
+        # Training configration
+        # -------- ------------
+        self.TRAIN_BATCH_SIZE = 4
+        self.NUM_DATALOADER_WORKERS = 1  # 
+        self.NUM_ITERATIONS_TRAIN = 10000  # number of iterations to train
+        self.LEARNING_RATE = 0.001
+        self.DECAY_LR_AT = [7500, 8500] # number of times to decay the LR by DECAY_FRAC
+        self.DECAY_FRAC = 0.1  # decay LR by this fraction of the current learning rate
+        self.WEIGHT_DECAY = 5e-4
+        self.MOMENTUM = 0.9
+        self.PRINT_FREQ = 20
         

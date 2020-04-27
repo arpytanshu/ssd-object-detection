@@ -15,7 +15,6 @@ import pandas as pd
 import torchvision.transforms as T
 import torchvision.transforms.functional as FT
 
-
 # -------------- ---------
 # Transformation Functions
 # -------------- ---------
@@ -23,25 +22,19 @@ import torchvision.transforms.functional as FT
 def resize(image, boxes, dims=(300,300)):
     '''
     Resize an image and bounding boxes.
-    
-    Parameters
-    ----------
-    image : a PIL Image
-    boxes : a tensor of dimensions (n_objects, 4)
-        Bounding box in [ x_min, y_min, x_max, y_max ] format.
-
-    Returns
-    -------
-    Resized image, updated bounding box coordinates.
-
+    Args:
+        image (PIL.Image)
+        boxes (Tensor): A tensor of dimensions (n_objects, 4)
+                representing the bounding boxes
+        dims (Tuple): Output image size. Defaults to (300,300).
+    Returns:
+        Resized PIL image, updated bounding box coordinates.
     '''
     # resize image
     new_image = FT.resize(image, dims)
-    
     # resize bounding boxes
     old_dims = torch.FloatTensor([image.width, image.height, image.width, image.height]).unsqueeze(0)
     new_boxes = boxes / old_dims  # percent coordinates 
-    
     return new_image, new_boxes
 
 
@@ -62,13 +55,11 @@ def hflip(image, boxes):
     '''
     # Flip image
     new_image = FT.hflip(image)
-
     # Flip boxes
     new_boxes = boxes
     new_boxes[:, 0] = image.width - boxes[:, 0] - 1
     new_boxes[:, 2] = image.width - boxes[:, 2] - 1
     new_boxes = new_boxes[:, [2, 1, 0, 3]]
-
     return new_image, new_boxes
 
 
@@ -94,15 +85,11 @@ def imageTransforms(image):
             T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             ])
     new_image = ImageTransforms(image)
-    
     return new_image
-
-
 
 # ------- -------- ---------
 # Dataset specific functions    
 # ------- -------- ---------
-
 
 def get_dataframe(annotations_path):
     D =    {'image_name' : [],
@@ -124,34 +111,32 @@ def get_dataframe(annotations_path):
 def collate_fn(batch):
     images = list()
     boxes = list()
+    labels = list()
     for b in batch:
         images.append(b[0])
         boxes.append(b[1])
+        labels.append(b[2])
     images = torch.stack(images, dim=0)
-    return images, boxes 
+    return images, boxes, labels
    
-    
    
 class ShelfImageDataset(Dataset):
-    
     def __init__(self, df, image_path):
         self.df = df
         self.image_path = image_path
         self.bb_format = 'xyXY' # one of ['xyXY', 'xywh']
-        
+    
+    def __len__(self):
+        return len(self.df)
+    
     def __getitem__(self, idx):
         image = Image.open(self.image_path + self.df.loc[idx, 'image_name']).convert('RGB')
         boxes = torch.tensor(self.df.loc[idx, 'BB_xywh'])
-         
         if self.bb_format == 'xyXY':
             boxes = utils.xywh_to_xyXY(boxes)
-        
         image, boxes = hflip(image, boxes)
         image, boxes = resize(image, boxes, (300,300))
         image = imageTransforms(image)
         boxes = boxes
-
-        return image, boxes
-        
-    def __len__(self):
-        return len(self.df)
+        label = torch.LongTensor([1]*boxes.size(0))
+        return image, boxes, label

@@ -58,7 +58,8 @@ for image, bb in zip(images, boxes):
 # ---- ----------- -----
 
 from model.ssdconfig import SSDConfig
-from model.vggbackbone import VggBackbone
+from model.ssd import VggBackbone
+import torch
 
 config = SSDConfig()
 model = VggBackbone(config)
@@ -76,7 +77,7 @@ for o in out:
 
 import pickle
 from model.ssdconfig import SSDConfig
-from model.predictionconv import PredictionConv
+from model.ssd import PredictionConv
 
 with open('ref/out.pickle' , 'rb') as f:
     out = pickle.load(f)
@@ -90,14 +91,21 @@ print(clf_out.shape)
 
 #%%
 
+import torch
 from model.ssd import SSD
+from model.ssdconfig import SSDConfig
 
+images = torch.rand((5, 3, 300, 300))
 
+model = SSD(SSDConfig())
+
+loc_out, clf_out = model(images)
+
+print('Loc out shape:', loc_out.shape)
+print('Clf out shape:', clf_out.shape)
 
 
 #%%
 
-# lets just work for conv9_2 with FM dim of 5x5
 
-fm_dim = 5
-fm_
+
