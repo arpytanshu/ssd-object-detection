@@ -7,7 +7,8 @@ Created on Tue Apr 17 01:17:07 2020
 """
 
 import time
-import utils 
+import utils
+import torch
 from ssdconfig import SSDConfig
 from data import ShelfImageDataset, collate_fn, get_dataframe
 from torch.utils.data import DataLoader
@@ -19,33 +20,38 @@ device = config.DEVICE
 
 
 def main():
-
-    global config, device
-    
+    try:
+        checkpoint = torch.load(config.PATH_TO_CHECKPOINT)
+        start_epoch = checkpoint['epoch'] + 1
+        print('\nLoaded checkpoint from epoch %d.\n' % start_epoch)
+        model = checkpoint['model']
+        optimizer = checkpoint['optimizer']
+    except FileNotFoundError:
+        print('PATH_TO_CHECKPOINT not specified in SSDConfig.\nMaking new model and optimizer.')
+        start_epoch = 0
+        model = SSD(config)
+        model_parameters = utils.get_model_params(model)
+        optimizer = SGD(params=[{'params': model_parameters['biases'], 'lr': 2 * config.LEARNING_RATE},
+                            {'params': model_parameters['not_biases']}],
+                            lr=config.LEARNING_RATE,
+                            momentum=config.MOMENTUM,
+                            weight_decay=config.WEIGHT_DECAY)
+ 
     # dataloader
     df = get_dataframe(config.PATH_TO_ANNOTATIONS)
-    dataset = ShelfImageDataset(df, config.PATH_TO_IMAGES)
+    dataset = ShelfImageDataset(df, config.PATH_TO_IMAGES, train=True)
     dataloader = DataLoader(dataset,
                             shuffle=True,
                             collate_fn=collate_fn,
                             batch_size=config.TRAIN_BATCH_SIZE,
                             num_workers=config.NUM_DATALOADER_WORKERS)
-    # model
-    model = SSD(config)
-    model_parameters = utils.get_model_params(model)
+    
+    # move to device
     model.to(device)
-    # optimizer
-    optimizer = SGD(params=[{'params': model_parameters['biases'], 'lr': 2 * config.LEARNING_RATE},
-                            {'params': model_parameters['not_biases']}],
-                            lr=config.LEARNING_RATE,
-                            momentum=config.MOMENTUM,
-                            weight_decay=config.WEIGHT_DECAY)
-    # criterion
-    criterion = MultiBoxLoss(model.priors_cxcy, config)
-    criterion = criterion.to(device)
-    
+    criterion = MultiBoxLoss(model.priors_cxcy, config).to(device)
+    # num epochs to train
     epochs = config.NUM_ITERATIONS_TRAIN // len(dataloader)
-    
+    # fooh!!!! :)
     for epoch in range(epochs):
         if epoch in config.DECAY_LR_AT:
             utils.adjust_learning_rate(optimizer, config.DECAY_FRAC)

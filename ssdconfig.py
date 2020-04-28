@@ -11,10 +11,28 @@ import torch
 class SSDConfig():
     def __init__(self):
         
+        
+        # -------- ------------
+        # Training configration
+        # -------- ------------
+        self.USE_PRETRAINED_VGG = True
+        self.TRAIN_BATCH_SIZE = 4
+        
+        self.NUM_DATALOADER_WORKERS = 2  # 
+        self.NUM_ITERATIONS_TRAIN = 10000  # number of iterations to train
+        self.LEARNING_RATE = 0.001
+        self.DECAY_LR_AT = [7500, 8500] # number of times to decay the LR by DECAY_FRAC
+        self.DECAY_FRAC = 0.1  # decay LR by this fraction of the current learning rate
+        self.WEIGHT_DECAY = 5e-4
+        self.MOMENTUM = 0.9
+        self.PRINT_FREQ = 35
+
+        # -----
         # Paths
+        # -----
         self.PATH_TO_ANNOTATIONS = './data/annotation.txt'
         self.PATH_TO_IMAGES = './data/ShelfImages/'
-        self.PATH_TO_CHECKPOINT = ''
+        self.PATH_TO_CHECKPOINT = './checkpoints/checkpoint_ssd.pth.tar' # absolute path of filename
         
         # ------
         # device
@@ -91,16 +109,5 @@ class SSDConfig():
         self.MBL_neg_pos_ratio = 3
         self.MBL_alpha = 1.
         
-        # -------- ------------
-        # Training configration
-        # -------- ------------
-        self.TRAIN_BATCH_SIZE = 8
-        self.NUM_DATALOADER_WORKERS = 2  # 
-        self.NUM_ITERATIONS_TRAIN = 10000  # number of iterations to train
-        self.LEARNING_RATE = 0.001
-        self.DECAY_LR_AT = [7500, 8500] # number of times to decay the LR by DECAY_FRAC
-        self.DECAY_FRAC = 0.1  # decay LR by this fraction of the current learning rate
-        self.WEIGHT_DECAY = 5e-4
-        self.MOMENTUM = 0.9
-        self.PRINT_FREQ = 10
+        
         

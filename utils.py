@@ -39,7 +39,7 @@ def accuracy(scores, targets, k):
     return correct_total.item() * (100.0 / batch_size)
 
 
-def save_checkpoint(epoch, model, optimizer, path=''):
+def save_checkpoint(epoch, model, optimizer, path):
     """
     Save model checkpoint.
 
@@ -50,8 +50,7 @@ def save_checkpoint(epoch, model, optimizer, path=''):
     state = {'epoch': epoch,
              'model': model,
              'optimizer': optimizer}
-    filename = path + 'checkpoint_ssd.pth.tar'
-    torch.save(state, filename)
+    torch.save(state, path)
 
 
 class AverageMeter(object):
