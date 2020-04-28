@@ -97,8 +97,8 @@ class VggBackbone(nn.Module):
         views = self.config.VGG_BASE_CONV67_VIEWS
         subsample_factor = self.config.VGG_BASE_CONV67_SUBSAMPLE_FACTOR
         # get pre-trained parameters
-        pretrained_params = vgg16_pt(False).features.state_dict()  # TODO : set to True
-        pretrained_clfr_params = vgg16_pt(False).classifier.state_dict()  # TODO : set to True
+        pretrained_params = vgg16_pt(True).features.state_dict()
+        pretrained_clfr_params = vgg16_pt(True).classifier.state_dict()
 
         # reshape and subsample parameters for conv6 & conv7 layers
         # add reshaped classifier parameters to pretrained_params
