@@ -57,7 +57,7 @@ def main():
         if epoch in config.DECAY_LR_AT:
             utils.adjust_learning_rate(optimizer, config.DECAY_FRAC)
         train(dataloader, model, criterion, optimizer, epoch)
-        utils.save_checkpoint(epoch, model, optimizer)
+        utils.save_checkpoint(epoch, model, optimizer, config.PATH_TO_CHECKPOINT)
     
     
     

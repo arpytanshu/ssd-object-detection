@@ -239,7 +239,7 @@ class SSD(nn.Module):
 class MultiBoxLoss(nn.Module):
     def __init__(self, priors_cxcy, config : SSDConfig):
         super(MultiBoxLoss, self).__init__()
-        self.priors_cxcy = priors_cxcy
+        self.priors_cxcy = priors_cxcy.to(device)
         self.priors_xy = ssdutils.cxcy_to_xy(priors_cxcy)
         self.threshold = config.MBL_threshold
         self.neg_pos_ratio = config.MBL_neg_pos_ratio
