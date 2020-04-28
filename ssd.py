@@ -77,7 +77,6 @@ class VggBackbone(nn.Module):
         # apply vgg up to conv4_3
         for ix in range(conv_43_index):
             x = self.vgg_base[ix](x)
-        # s = self.l2_norm(x)  # Conv4_3 L2 normalization # TODO : implement
         features.append(x)
 
         # apply vgg up to fc7
@@ -122,10 +121,6 @@ class VggBackbone(nn.Module):
                 index = torch.arange(0, end=tensor.size(d), step=m[d], dtype=torch.long)
                 tensor = tensor.index_select(dim=d, index = index)                       
         return tensor
-
-    def l2_norm(self):
-        # TODO : Implement
-        pass
 
     def _init_aux_params(self):
         for m in self.aux_base.modules():
