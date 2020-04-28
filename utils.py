@@ -103,21 +103,6 @@ def xywh_to_xyXY(boxes_xywh : torch.tensor) -> torch.tensor:
     return boxes_xyXY
 
 
-def xyXY_to_xywh(boxes_xyXY : torch.tensor) -> torch.tensor:
-    '''
-    Get bounding box coordinates in [ x_top_left, y_top_left, bb_width, bb_height] format.
-
-    Parameters
-    ----------
-    boxes_xywh : list or tensor in [ x_top_left, y_top_left, x_bottom_right, y_bottom_right] format.
-
-    '''
-    boxes_xywh = boxes_xyXY.clone()
-    boxes_xywh[:,2] = boxes_xywh[:,2] - boxes_xywh[:,0]
-    boxes_xywh[:,3] = boxes_xywh[:,3] - boxes_xywh[:,1]
-    return boxes_xywh
-
-
 def showBB_xyXY(image, boxes, scale = 300):
     if (type(image) == torch.Tensor):
         image = to_pil_image(image)
@@ -135,6 +120,7 @@ def get_params_to_learn(model):
             params_to_learn.append(param)
     return params_to_learn
 
+
 def get_mean_AR(df):
     samples = df.BB_xywh.values
     AR = list()
@@ -143,3 +129,15 @@ def get_mean_AR(df):
             AR.append(box[2] / box[3])
     AR = np.array(AR)
     return AR.mean(), AR.std()      
+
+
+def get_model_params(model):
+    biases = list()
+    not_biases = list()
+    for param_name, param in model.named_parameters():
+        if param.requires_grad:
+            if param_name.endswith('.bias'):
+                biases.append(param)
+            else:
+                not_biases.append(param)
+    return {'biases' : biases, 'not_biases' : not_biases}

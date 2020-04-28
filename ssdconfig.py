@@ -94,13 +94,13 @@ class SSDConfig():
         # -------- ------------
         # Training configration
         # -------- ------------
-        self.TRAIN_BATCH_SIZE = 4
-        self.NUM_DATALOADER_WORKERS = 1  # 
+        self.TRAIN_BATCH_SIZE = 8
+        self.NUM_DATALOADER_WORKERS = 2  # 
         self.NUM_ITERATIONS_TRAIN = 10000  # number of iterations to train
         self.LEARNING_RATE = 0.001
         self.DECAY_LR_AT = [7500, 8500] # number of times to decay the LR by DECAY_FRAC
         self.DECAY_FRAC = 0.1  # decay LR by this fraction of the current learning rate
         self.WEIGHT_DECAY = 5e-4
         self.MOMENTUM = 0.9
-        self.PRINT_FREQ = 20
+        self.PRINT_FREQ = 10
         

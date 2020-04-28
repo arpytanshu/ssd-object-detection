@@ -17,17 +17,6 @@ from ssd import SSD, MultiBoxLoss
 config = SSDConfig()
 device = config.DEVICE
 
-def get_model_params(model):
-    biases = list()
-    not_biases = list()
-    for param_name, param in model.named_parameters():
-        if param.requires_grad:
-            if param_name.endswith('.bias'):
-                biases.append(param)
-            else:
-                not_biases.append(param)
-    return {'biases' : biases, 'not_biases' : not_biases}
-
 
 def main():
 
@@ -36,10 +25,14 @@ def main():
     # dataloader
     df = get_dataframe(config.PATH_TO_ANNOTATIONS)
     dataset = ShelfImageDataset(df, config.PATH_TO_IMAGES)
-    dataloader = DataLoader(dataset, batch_size=config.TRAIN_BATCH_SIZE, shuffle=True, collate_fn=collate_fn)
+    dataloader = DataLoader(dataset,
+                            shuffle=True,
+                            collate_fn=collate_fn,
+                            batch_size=config.TRAIN_BATCH_SIZE,
+                            num_workers=config.NUM_DATALOADER_WORKERS)
     # model
     model = SSD(config)
-    model_parameters = get_model_params(model)
+    model_parameters = utils.get_model_params(model)
     model.to(device)
     # optimizer
     optimizer = SGD(params=[{'params': model_parameters['biases'], 'lr': 2 * config.LEARNING_RATE},
