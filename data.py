@@ -7,6 +7,7 @@ Created on Tue Apr 17 01:17:07 2020
 """
 
 from PIL import Image
+from os import listdir
 from torch.utils.data import Dataset
 
 import utils
@@ -121,22 +122,25 @@ def collate_fn(batch):
    
    
 class ShelfImageDataset(Dataset):
-    def __init__(self, df, image_path):
+    def __init__(self, df, image_path, train=True):
         self.df = df
-        self.image_path = image_path
-        self.bb_format = 'xyXY' # one of ['xyXY', 'xywh']
-    
+        self.image_path = image_path+'train/' if train else image_path+'test/'
+        self._fix_df()
+        
     def __len__(self):
         return len(self.df)
     
+    def _fix_df(self):
+        list_images = listdir(self.image_path)
+        self.df = self.df[self.df.image_name.isin(list_images)]
+        self.df.reset_index(drop=True, inplace=True)
+        
     def __getitem__(self, idx):
         image = Image.open(self.image_path + self.df.loc[idx, 'image_name']).convert('RGB')
         boxes = torch.tensor(self.df.loc[idx, 'BB_xywh'])
-        if self.bb_format == 'xyXY':
-            boxes = utils.xywh_to_xyXY(boxes)
+        boxes = utils.xywh_to_xyXY(boxes)
         image, boxes = hflip(image, boxes)
         image, boxes = resize(image, boxes, (300,300))
         image = imageTransforms(image)
-        boxes = boxes
         label = torch.LongTensor([1]*boxes.size(0))
         return image, boxes, label
