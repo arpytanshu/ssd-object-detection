@@ -157,19 +157,19 @@ class PredictionConv(nn.Module):
 
     def _get_localization_convs(self):
         localization_layers = []
-        for fm_name in self.config.FM_NAMES:
+        for ix, fm_name in enumerate(self.config.FM_NAMES):
             localization_layers.append(
-                nn.Conv2d(in_channels=self.num_channels[fm_name],
-                          out_channels=self.num_priors[fm_name]*4,
+                nn.Conv2d(in_channels=self.num_channels[ix],
+                          out_channels=self.num_priors[ix]*4,
                           kernel_size=3, padding=1))
         return localization_layers
 
     def _get_classification_convs(self):
         classification_layers = []
-        for fm_name in self.config.FM_NAMES:
+        for ix, fm_name in enumerate(self.config.FM_NAMES):
             classification_layers.append(
-                nn.Conv2d(in_channels=self.num_channels[fm_name],
-                          out_channels=self.num_classes * self.num_priors[fm_name],
+                nn.Conv2d(in_channels=self.num_channels[ix],
+                          out_channels=self.num_classes * self.num_priors[ix],
                           kernel_size=3, padding=1))
         return classification_layers
 

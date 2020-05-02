@@ -21,7 +21,7 @@ device = config.DEVICE
 
 def main():
     try:
-        checkpoint = torch.load(config.PATH_TO_CHECKPOINT)
+        checkpoint = torch.load(config.PATH_TO_CHECKPOINT, map_location=torch.device('cpu'))
         start_epoch = checkpoint['epoch'] + 1
         print('\nLoaded checkpoint from epoch %d.\n' % start_epoch)
         model = checkpoint['model']
@@ -51,12 +51,14 @@ def main():
     criterion = MultiBoxLoss(model.priors_cxcy, config).to(device)
     # num epochs to train
     epochs = config.NUM_ITERATIONS_TRAIN // len(dataloader)
+    # epoch where LR is decayed
+    decay_at_epoch = [int(epochs*x) for x in config.DECAY_LR_AT]
     # fooh!!!! :)
     for epoch in range(start_epoch, epochs):
-        if epoch in config.DECAY_LR_AT:
+        if epoch in decay_at_epoch:
             utils.adjust_learning_rate(optimizer, config.DECAY_FRAC)
         train(dataloader, model, criterion, optimizer, epoch)
-        utils.save_checkpoint(epoch, model, optimizer, config.PATH_TO_CHECKPOINT)
+        utils.save_checkpoint(epoch, model, optimizer, config, config.PATH_TO_CHECKPOINT)
     
     
     

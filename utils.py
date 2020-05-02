@@ -39,7 +39,7 @@ def accuracy(scores, targets, k):
     return correct_total.item() * (100.0 / batch_size)
 
 
-def save_checkpoint(epoch, model, optimizer, path):
+def save_checkpoint(epoch, model, optimizer, config, path):
     """
     Save model checkpoint.
 
@@ -49,7 +49,8 @@ def save_checkpoint(epoch, model, optimizer, path):
     """
     state = {'epoch': epoch,
              'model': model,
-             'optimizer': optimizer}
+             'optimizer': optimizer,
+             'config': config}
     torch.save(state, path)
 
 
