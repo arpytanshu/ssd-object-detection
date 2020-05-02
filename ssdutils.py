@@ -80,7 +80,8 @@ def detect_objects(predicted_locs, predicted_scores, priors_cxcy, min_score, max
     n_priors = priors_cxcy.size(0)
     n_classes = predicted_scores.size(2)
     predicted_scores = F.softmax(predicted_scores, dim=2)  # (N, 8732, n_classes)
-    device = None
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     # Lists to store final predicted boxes, labels, and scores for all images
     all_images_boxes = list()
     all_images_labels = list()

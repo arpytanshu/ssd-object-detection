@@ -15,9 +15,8 @@ class SSDConfig():
         # -------- ------------
         # Training configration
         # -------- ------------
-        self.USE_PRETRAINED_VGG = True
-        self.TRAIN_BATCH_SIZE = 4
         
+        self.TRAIN_BATCH_SIZE = 4
         self.NUM_DATALOADER_WORKERS = 2  # 
         self.NUM_ITERATIONS_TRAIN = 10000  # number of iterations to train
         self.LEARNING_RATE = 0.001
@@ -34,19 +33,25 @@ class SSDConfig():
         self.PATH_TO_IMAGES = './data/ShelfImages/'
         self.PATH_TO_CHECKPOINT = './checkpoints/checkpoint_ssd.pth.tar' # absolute path of filename
         
-        # ------
-        # device
-        # ------
-        self.DEVICE = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
         # -----
         # Input
         # -----
         self.INPUT_IMAGE_SIZE = 300
         self.NUM_CLASSES = 2
+        
+        
+        # MODEL CONFIGURATION
+        
+        # ------
+        # device
+        # ------
+        self.DEVICE = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
+        
         # -------------- --- --- --------
         # Configurations for VGG Backbone
         # -------------- --- --- --------
-        self.VGG_BASE_BN = True
+        self.VGG_BN_FLAG = False # whether vgg is used with or without batch norm.
+        self.USE_PRETRAINED_VGG = False
         self.VGG_BASE_IN_CHANNELS = 3
         self.VGG_BASE_CONFIG = {
             '300': [64, 64, 'M', 128, 128, 'M', 256, 256, 256,
@@ -63,8 +68,12 @@ class SSDConfig():
                                                  [4],
                                                  [4, 4, None, None],
                                                  [4]]
-        self.VGGBN_BASE_CONV43_INDEX = 33
-        self.VGG_BASE_CONV43_INDEX = None  # TODO : find value
+        
+        # These index are used to stop forward pass loop at conv4_3
+        # and get it's features.
+        self.VGGBN_BASE_CONV43_INDEX = 33  # index of 'conv4_3' layer in VGG16_BN
+        self.VGG_BASE_CONV43_INDEX = 23  # index of 'conv4_3' layer in VGG16
+        
         # -------------- --- ---------- ------------
         # Configurations for Auxiliary convolutions
         # -------------- --- ---------- ------------
@@ -99,7 +108,8 @@ class SSDConfig():
                                 [1., 2., 3., 0.5, .333],
                                 [1., 2., 0.5],
                                 [1., 2., 0.5]]
-        # ith additional scale is geometric mean scales of ith and (i+1)th FM.
+        # ith additional scale is geometric mean of scales of ith and (i+1)th FM.
+        # Aspect Ratio for the priors corresponding to these scales is 1.
         self.FM_ADDITIONAL_SCALES = [0.1414, 0.2738, 0.4541, 0.6314, 0.8077, 1.0]
         
         # ---- -------------

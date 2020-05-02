@@ -52,7 +52,7 @@ def main():
     # num epochs to train
     epochs = config.NUM_ITERATIONS_TRAIN // len(dataloader)
     # fooh!!!! :)
-    for epoch in range(epochs):
+    for epoch in range(start_epoch, epochs):
         if epoch in config.DECAY_LR_AT:
             utils.adjust_learning_rate(optimizer, config.DECAY_FRAC)
         train(dataloader, model, criterion, optimizer, epoch)

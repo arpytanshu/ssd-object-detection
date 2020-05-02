@@ -15,21 +15,21 @@ from ssdconfig import SSDConfig
 import ssdutils
 from torchvision.models import vgg16_bn, vgg16
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 class VggBackbone(nn.Module):
     def __init__(self, config: SSDConfig):
         super().__init__()
+
         self.config = config
+        self.conv_43_index = self.config.VGGBN_BASE_CONV43_INDEX if self.config.VGG_BN_FLAG else self.config.VGG_BASE_CONV43_INDEX
+
         self.vgg_base = nn.ModuleList(self._vgg_layers())
         self.aux_base = nn.ModuleList(self._aux_layers())
         self._init_aux_params()
         self._load_vgg_params()
-
+        
     def _vgg_layers(self):
         cfg = self.config.VGG_BASE_CONFIG[str(self.config.INPUT_IMAGE_SIZE)]
-        batch_norm = self.config.VGG_BASE_BN
         in_channels = self.config.VGG_BASE_IN_CHANNELS
         layers = []
         for v in cfg:
@@ -39,7 +39,7 @@ class VggBackbone(nn.Module):
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True)]
             else:
                 conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
-                if batch_norm:
+                if self.config.VGG_BN_FLAG:
                     layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=True)]
                 else:
                     layers += [conv2d, nn.ReLU(inplace=True)]
@@ -72,15 +72,14 @@ class VggBackbone(nn.Module):
 
     def forward(self, x):
         features = []
-        conv_43_index = self.config.VGGBN_BASE_CONV43_INDEX
         
         # apply vgg up to conv4_3
-        for ix in range(conv_43_index):
+        for ix in range(self.conv_43_index):
             x = self.vgg_base[ix](x)
         features.append(x)
 
         # apply vgg up to fc7
-        for ix in range(conv_43_index, len(self.vgg_base)):
+        for ix in range(self.conv_43_index, len(self.vgg_base)):
             x = self.vgg_base[ix](x)
         features.append(x)
         
@@ -92,7 +91,7 @@ class VggBackbone(nn.Module):
         return features
 
     def _load_vgg_params(self):
-        vgg16_pt = vgg16_bn if self.config.VGG_BASE_BN else vgg16  # pretrained vgg16 model
+        vgg16_pt = vgg16_bn if self.config.VGG_BN_FLAG else vgg16  # pretrained vgg16 model
         views = self.config.VGG_BASE_CONV67_VIEWS
         subsample_factor = self.config.VGG_BASE_CONV67_SUBSAMPLE_FACTOR
         # get pre-trained parameters
@@ -225,17 +224,107 @@ class SSD(nn.Module):
         PRIORS.clamp_(0,1)
         return PRIORS
     
-    def detect_objects(self):
-        # implemented in ssdutils
-        raise NotImplementedError
+    def detect_objects(self, predicted_locs, predicted_scores, min_score, max_overlap, top_k=0):
+        batch_size = predicted_locs.size(0)
+        n_priors = self.priors_cxcy.size(0)
+        predicted_scores = F.softmax(predicted_scores, dim=2)  # (N, 8732, n_classes)
+
+        # Lists to store final predicted boxes, labels, and scores for all images
+        all_images_boxes = list()
+        all_images_labels = list()
+        all_images_scores = list()
+
+        assert n_priors == predicted_locs.size(1) == predicted_scores.size(1)
+
+        for i in range(batch_size):
+            # Decode object coordinates from the form we regressed predicted boxes to
+            decoded_locs = ssdutils.cxcy_to_xy(
+                ssdutils.gcxgcy_to_cxcy(predicted_locs[i], self.priors_cxcy))  # (8732, 4), these are fractional pt. coordinates
+
+            # Lists to store boxes and scores for this image
+            image_boxes = list()
+            image_labels = list()
+            image_scores = list()
+
+            max_scores, best_label = predicted_scores[i].max(dim=1)  # (8732)
+
+            # Check for each class
+            for c in range(1, self.config.NUM_CLASSES):
+                # Keep only predicted boxes and scores where scores for this class are above the minimum score
+                class_scores = predicted_scores[i][:, c]  # (8732)
+                score_above_min_score = class_scores > min_score  # torch.uint8 (byte) tensor, for indexing
+                n_above_min_score = score_above_min_score.sum().item()
+                if n_above_min_score == 0:
+                    continue
+                class_scores = class_scores[score_above_min_score]  # (n_qualified), n_min_score <= 8732
+                class_decoded_locs = decoded_locs[score_above_min_score]  # (n_qualified, 4)
+
+                # Sort predicted boxes and scores by scores
+                class_scores, sort_ind = class_scores.sort(dim=0, descending=True)  # (n_qualified), (n_min_score)
+                class_decoded_locs = class_decoded_locs[sort_ind]  # (n_min_score, 4)
+
+                # Find the overlap between predicted boxes
+                overlap = ssdutils.find_jaccard_overlap(class_decoded_locs, class_decoded_locs)  # (n_qualified, n_min_score)
+
+                # Non-Maximum Suppression (NMS)
+
+                # A torch.uint8 (byte) tensor to keep track of which predicted boxes to suppress
+                # 1 implies suppress, 0 implies don't suppress
+                suppress = torch.zeros((n_above_min_score)).to(torch.bool).to(self.config.DEVICE)  # (n_qualified)
+                
+                # Consider each box in order of decreasing scores
+                for box in range(class_decoded_locs.size(0)):
+                    # If this box is already marked for suppression
+                    if suppress[box] == True:
+                        continue
+
+                    # Suppress boxes whose overlaps (with this box) are greater than maximum overlap
+                    # Find such boxes and update suppress indices
+                    suppress = torch.max(suppress, overlap[box] > max_overlap)
+                    # The max operation retains previously suppressed boxes, like an 'OR' operation
+
+                    # Don't suppress this box, even though it has an overlap of 1 with itself
+                    suppress[box] = False
+
+                # Store only unsuppressed boxes for this class
+                image_boxes.append(class_decoded_locs[~suppress])
+                image_labels.append(torch.LongTensor((~suppress).sum().item() * [c]).to(self.config.DEVICE))
+                image_scores.append(class_scores[~suppress])
+
+            # If no object in any class is found, store a placeholder for 'background'
+            if len(image_boxes) == 0:
+                image_boxes.append(torch.FloatTensor([[0., 0., 1., 1.]]).to(self.config.DEVICE))
+                image_labels.append(torch.LongTensor([0]).to(self.config.DEVICE))
+                image_scores.append(torch.FloatTensor([0.]).to(self.config.DEVICE))
+
+            # Concatenate into single tensors
+            image_boxes = torch.cat(image_boxes, dim=0)  # (n_objects, 4)
+            image_labels = torch.cat(image_labels, dim=0)  # (n_objects)
+            image_scores = torch.cat(image_scores, dim=0)  # (n_objects)
+            n_objects = image_scores.size(0)
+
+            # Keep only the top k objects
+            if n_objects > top_k > 0:
+                image_scores, sort_ind = image_scores.sort(dim=0, descending=True)
+                image_scores = image_scores[:top_k]  # (top_k)
+                image_boxes = image_boxes[sort_ind][:top_k]  # (top_k, 4)
+                image_labels = image_labels[sort_ind][:top_k]  # (top_k)
+
+            # Append to lists that store predicted boxes and scores for all images
+            all_images_boxes.append(image_boxes)
+            all_images_labels.append(image_labels)
+            all_images_scores.append(image_scores)
+
+        return all_images_boxes, all_images_labels, all_images_scores  # lists of length batch_size
         
 
 
 class MultiBoxLoss(nn.Module):
     def __init__(self, priors_cxcy, config : SSDConfig):
         super(MultiBoxLoss, self).__init__()
-        self.priors_cxcy = priors_cxcy.to(device)
-        self.priors_xy = ssdutils.cxcy_to_xy(priors_cxcy).to(device)
+        self.config = config
+        self.priors_cxcy = priors_cxcy.to(self.config.DEVICE)
+        self.priors_xy = ssdutils.cxcy_to_xy(priors_cxcy).to(self.config.DEVICE)
         self.threshold = config.MBL_threshold
         self.neg_pos_ratio = config.MBL_neg_pos_ratio
         self.alpha = config.MBL_alpha
@@ -252,7 +341,6 @@ class MultiBoxLoss(nn.Module):
         :param labels: true object labels, a list of N tensors
         :return: multibox loss, a scalar
         """
-        global device
         
         batch_size = predicted_locs.size(0)
         n_priors = self.priors_cxcy.size(0)
@@ -260,8 +348,8 @@ class MultiBoxLoss(nn.Module):
 
         assert n_priors == predicted_locs.size(1) == predicted_scores.size(1)
 
-        true_locs = torch.zeros((batch_size, n_priors, 4), dtype=torch.float).to(device)  # (N, 8732, 4)
-        true_classes = torch.zeros((batch_size, n_priors), dtype=torch.long).to(device)  # (N, 8732)
+        true_locs = torch.zeros((batch_size, n_priors, 4), dtype=torch.float).to(self.config.DEVICE)  # (N, 8732, 4)
+        true_classes = torch.zeros((batch_size, n_priors), dtype=torch.long).to(self.config.DEVICE)  # (N, 8732)
 
         # For each image
         for i in range(batch_size):
@@ -317,7 +405,7 @@ class MultiBoxLoss(nn.Module):
         conf_loss_neg = conf_loss_all.clone()  # (N, 8732)
         conf_loss_neg[positive_priors] = 0.  # (N, 8732), positive priors are ignored (never in top n_hard_negatives)
         conf_loss_neg, _ = conf_loss_neg.sort(dim=1, descending=True)  # (N, 8732), sorted by decreasing hardness
-        hardness_ranks = torch.LongTensor(range(n_priors)).unsqueeze(0).expand_as(conf_loss_neg).to(device)  # (N, 8732)
+        hardness_ranks = torch.LongTensor(range(n_priors)).unsqueeze(0).expand_as(conf_loss_neg).to(self.config.DEVICE)  # (N, 8732)
         hard_negatives = hardness_ranks < n_hard_negatives.unsqueeze(1)  # (N, 8732)
         conf_loss_hard_neg = conf_loss_neg[hard_negatives]  # (sum(n_hard_negatives))
 

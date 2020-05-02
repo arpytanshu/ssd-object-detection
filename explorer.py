@@ -38,7 +38,7 @@ dataloader = DataLoader(dataset, batch_size=5, shuffle=True, collate_fn=data.col
 #%%
 # test dataset
 # ---- -------
-image, boxes = dataset[randint(0, len(dataset))]
+image, boxes, labels = dataset[randint(0, len(dataset))]
 utils.showBB_xyXY(image, boxes)
 
 # test dataloader
@@ -57,8 +57,8 @@ for image, bb in zip(images, boxes):
 # test vggBackbone model
 # ---- ----------- -----
 
-from model.ssdconfig import SSDConfig
-from model.ssd import VggBackbone
+from ssdconfig import SSDConfig
+from ssd import VggBackbone
 import torch
 
 config = SSDConfig()
