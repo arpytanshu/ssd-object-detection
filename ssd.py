@@ -215,7 +215,8 @@ class SSD(nn.Module):
             for cx, cy in zip(torch.arange(dim).repeat(dim), torch.arange(dim).repeat_interleave(dim)):
                 cx = (cx + 0.5) / dim
                 cy = (cy + 0.5) / dim
-                PRIORS.append([cx, cy, additional_scales[ix], additional_scales[ix]])
+                if additional_scales != []:
+                    PRIORS.append([cx, cy, additional_scales[ix], additional_scales[ix]])
                 for a_r in fm_aspect_ratios[ix]:
                     width = scale * sqrt(a_r)
                     height = scale / sqrt(a_r)
