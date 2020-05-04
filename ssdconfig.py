@@ -98,10 +98,10 @@ class SSDConfig():
                                 [1., 2., 0.5],
                                 [1., 2., 0.5]]
         
-        # ith additional scale is geometric mean of scales of ith and (i+1)th FM.
-        # Aspect Ratio for the priors corresponding to these scales is 1.
+        # # ith additional scale is geometric mean of scales of ith and (i+1)th FM.
+        # # Aspect Ratio for the priors corresponding to these scales is 1.
         self.FM_ADDITIONAL_SCALES = [0.1414, 0.2738, 0.4541, 0.6314, 0.8077, 1.0]
-        
+       
         # the +1 is for the additional scale        
         self.NUM_PRIOR_PER_FM_CELL = [len(x)+1 for x in self.FM_ASPECT_RATIO]
 

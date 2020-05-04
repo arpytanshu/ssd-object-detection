@@ -165,6 +165,7 @@ def detect_objects(predicted_locs, predicted_scores, priors_cxcy, min_score, max
 
     return all_images_boxes, all_images_labels, all_images_scores  # lists of length batch_size
 
+
 def create_prior_box(config):
     fm_dims = config.FM_DIMS
     fm_names = config.FM_NAMES
@@ -178,7 +179,8 @@ def create_prior_box(config):
         for cx, cy in zip(torch.arange(dim).repeat(dim), torch.arange(dim).repeat_interleave(dim)):
             cx = (cx + 0.5) / dim
             cy = (cy + 0.5) / dim
-            PRIORS.append([cx, cy, additional_scales[ix], additional_scales[ix]])
+            if additional_scales != []:
+                    PRIORS.append([cx, cy, additional_scales[ix], additional_scales[ix]])
             for a_r in fm_aspect_ratios[ix]:
                 width = scale * sqrt(a_r)
                 height = scale / sqrt(a_r)
@@ -187,4 +189,102 @@ def create_prior_box(config):
     PRIORS.clamp_(0,1)
     return PRIORS
 
+
+def calc_mAP(gt_boxes, gt_labels, pred_boxes, pred_labels, pred_scores):
+    assert (len(gt_boxes) == len(gt_labels) == len(pred_boxes) == len(pred_labels) == len(pred_scores))
     
+    gt_image_ix = []
+    pred_image_ix = []
+    
+    for ix, (box, label) in enumerate(zip(gt_boxes, gt_labels)):
+        assert(box.size(0) == label.size(0))
+        gt_image_ix.extend([ix] * box.size(0))
+    for ix, (box, label, score) in enumerate(zip(pred_boxes, pred_labels, pred_scores)):
+        assert(box.size(0) == label.size(0) == score.size(0))
+        pred_image_ix.extend([ix] * box.size(0))
+    
+    
+    gt_image_ix = torch.tensor(gt_image_ix)
+    gt_boxes = torch.cat(gt_boxes, dim=0)
+    gt_labels = torch.cat(gt_labels, dim=0)
+    
+    pred_image_ix = torch.tensor(pred_image_ix)
+    pred_boxes = torch.cat(pred_boxes, dim=0)
+    pred_labels = torch.cat(pred_labels, dim=0)
+    pred_scores = torch.cat(pred_scores, dim=0)
+    
+    n_classes = gt_labels.unique().item() + 1
+    AP = torch.zeros((n_classes - 1,), dtype=torch.float)
+    
+    for class_id in range(1, n_classes):
+        # all ground truth box & label associated with this class ( across all the images )
+        gt_ix = gt_labels == class_id
+        gt_image_ix_class = gt_image_ix[gt_ix]
+        gt_boxes_class = gt_boxes[gt_ix]
+        gt_labels_class = gt_labels[gt_ix]
+        
+        # get all predictions for this class and sort them
+        pred_ix = pred_labels == class_id
+        _, pred_sorted_ix = torch.sort(pred_scores[pred_ix], dim=0, descending=True)
+        
+        pred_image_ix_class = pred_image_ix[pred_ix][pred_sorted_ix]
+        pred_boxes_class = pred_boxes[pred_ix][pred_sorted_ix]
+        pred_labels_class = pred_boxes[pred_ix][pred_sorted_ix]
+        pred_scores_class = pred_scores[pred_ix][pred_sorted_ix]
+        
+        # number of detections for this class for this image
+        n_class_detections = pred_boxes_class.size(0)
+        if n_class_detections == 0: continue
+    
+        TP = torch.zeros((n_class_detections,))
+        FP = torch.zeros((n_class_detections,))
+        # To keep track gt_boxes that have already been detected.
+        detected_gt_boxes = torch.zeros(gt_image_ix_class.size(0))
+        
+        for d in range(n_class_detections):
+            this_image_ix = pred_image_ix_class[d]
+            this_box = pred_boxes_class[d]
+            
+            # get all gt_boxes in this image which have the same class
+            obj_same_class_in_image = gt_boxes_class[gt_image_ix_class == this_image_ix]
+            # if no GT box exists for this class for this image, mark FP
+            if obj_same_class_in_image.size(0) == 0:
+                FP[d] = 1
+                continue
+            
+            # find overlap of this detection with all gt boxes of the same class in this image
+            overlap = find_jaccard_overlap(this_box.unsqueeze(0), obj_same_class_in_image)
+            max_overlap, ind = torch.max(overlap.squeeze(0), dim=0)
+            # index of box in gt_boxes_class with maximum overlap
+            gt_matched_index = torch.LongTensor(range(gt_boxes_class.size(0)))[gt_image_ix_class == this_image_ix][ind]
+            
+            
+            if max_overlap.item() > 0.5:
+                # if this object has not already been detected, it's a TP
+                if detected_gt_boxes[gt_matched_index] == 0:
+                    TP[d] = 1
+                    detected_gt_boxes[gt_matched_index] = 1 # this gt_box has been detected
+                else:
+                    FP[d] = 1
+            else:
+                FP[d] = 1
+                
+        # Compute cumulative precision and recall at each detection in the order of decreasing scores
+        cumul_TP = torch.cumsum(TP, dim=0)  # (n_class_detections)
+        cumul_FP = torch.cumsum(FP, dim=0)  # (n_class_detections)
+        cumul_precision = cumul_TP / (cumul_TP + cumul_FP + 1e-10)  # (n_class_detections)
+        cumul_recall = cumul_TP / n_class_detections  # (n_class_detections)
+    
+        # Find the mean of the maximum of the precisions corresponding to recalls above the threshold 't'
+        recall_thresholds = torch.arange(start=0, end=1.1, step=.1).tolist()
+        precisions = torch.zeros((len(recall_thresholds)), dtype=torch.float)
+        for i, t in enumerate(recall_thresholds):
+            recalls_above_t = cumul_recall >= t
+            if recalls_above_t.any():
+                precisions[i] = cumul_precision[recalls_above_t].max()
+            else:
+                precisions[i] = 0.
+        AP[class_id - 1] = precisions.mean()  # c is in [1, n_classes - 1]
+    
+    mAP = AP.mean().item()    
+    return AP, mAP
