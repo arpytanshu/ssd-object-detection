@@ -190,7 +190,7 @@ class SSD(nn.Module):
         self.vgg_backbone = VggBackbone(config)
         self.pred_convs = PredictionConv(config)
         self.rescale_factor = nn.Parameter(torch.FloatTensor(1, 512, 1, 1))
-        self.priors_cxcy = self.create_prior_box()
+        self.priors_cxcy = self.create_prior_box().to(self.config.DEVICE)
         
     def forward(self, images):
         feature_maps = self.vgg_backbone(images)
