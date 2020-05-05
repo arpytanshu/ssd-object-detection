@@ -8,7 +8,9 @@ Created on Tue Apr 17 01:17:07 2020
 
 from PIL import Image
 from os import listdir
+from random import uniform
 from torch.utils.data import Dataset
+
 
 import utils
 import torch
@@ -48,11 +50,9 @@ def hflip(image, boxes):
     image : a PIL Image
     boxes : a tensor of dimensions (n_objects, 4)
         Bounding box in [ x_min, y_min, x_max, y_max ] format.
-
     Returns
     -------
     flipped image, updated bounding box coordinates.
-
     '''
     # Flip image
     new_image = FT.hflip(image)
@@ -81,9 +81,9 @@ def imageTransforms(image):
 
     '''
     ImageTransforms = T.Compose([
-            T.ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25, hue=0.25),
+            T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
             T.ToTensor(),
-            T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            # T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             ])
     new_image = ImageTransforms(image)
     return new_image
@@ -122,8 +122,10 @@ def collate_fn(batch):
    
    
 class ShelfImageDataset(Dataset):
-    def __init__(self, df, image_path, train=True):
+    def __init__(self, df, image_path, train=True, return_orig=False):
         self.df = df
+        self.train = train
+        self.return_orig = return_orig
         self.image_path = image_path+'train/' if train else image_path+'test/'
         self._fix_df()
         
@@ -136,11 +138,17 @@ class ShelfImageDataset(Dataset):
         self.df.reset_index(drop=True, inplace=True)
         
     def __getitem__(self, idx):
-        image = Image.open(self.image_path + self.df.loc[idx, 'image_name']).convert('RGB')
+        orig_image = Image.open(self.image_path + self.df.loc[idx, 'image_name']).convert('RGB')
         boxes = torch.tensor(self.df.loc[idx, 'BB_xywh'])
         boxes = utils.xywh_to_xyXY(boxes)
-        image, boxes = hflip(image, boxes)
-        image, boxes = resize(image, boxes, (300,300))
+        # rescale image and boxes
+        image, boxes = resize(orig_image, boxes, (300,300))
+        # horizontal flip image and boxes with 50% prob (if it's a train sample)
+        if (uniform(0,1)>0.5 and self.train): 
+            image, boxes = hflip(image, boxes)
         image = imageTransforms(image)
         label = torch.LongTensor([1]*boxes.size(0))
-        return image, boxes, label
+        if self.return_orig:
+            return image, boxes, label, orig_image
+        else:
+            return image, boxes, label
